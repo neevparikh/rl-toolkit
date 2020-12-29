@@ -1,0 +1,4 @@
+torch
+numpy
+gym[all]
+minerl@ git+ssh://git@github.com/neevparikh/minerl@master#egg=minerl
