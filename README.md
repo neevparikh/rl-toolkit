@@ -1,2 +1,5 @@
-# universal-prior
-Take advantage of the universal prior in RL
+# RL toolkit
+RL algorithms for internal use.
+
+Includes PPO/DQN/SAC
+Includes async DQN (ApeX style)
