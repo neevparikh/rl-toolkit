@@ -13,7 +13,6 @@ setup(
         "tensorboard",
         "numpy",
         "gym[all]",
-        "minerl @ git+ssh://git@github.com/neevparikh/minerl@master#egg=minerl",
         "atariari @ git+ssh://git@github.com/mila-iqia/atari-representation-learning@master#egg=atariari",
         "seaborn",
     ],
