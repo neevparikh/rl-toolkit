@@ -81,7 +81,7 @@ class TorchReplayBuffer:
 class AsyncTorchReplayBuffer(TorchReplayBuffer):
     def __init__(self, actor_queues, learner_conn, max_size, transition_shapes):
         super(AsyncTorchReplayBuffer, self).__init__(max_size, transition_shapes)
-        self.actor_queues = [[False, aq] for aq in actor_queues]
+        self.actor_queues = actor_queues
         self.learner_conn = learner_conn
         self.exit = mp.Event()
 
@@ -91,6 +91,7 @@ class AsyncTorchReplayBuffer(TorchReplayBuffer):
 
 def async_buffer_run(buf):
     buf.logger = get_logger()
+    buf.actor_queues = [[False, aq] for aq in buf.actor_queues]
     while not buf.exit.is_set():
         if buf.learner_conn.poll(timeout=1):
             learner_running, transition_tensors = buf.learner_conn.recv()
