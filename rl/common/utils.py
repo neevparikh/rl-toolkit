@@ -190,11 +190,12 @@ def weights_init_(m):
 
 def get_logger():
     logger = mp.get_logger()
+    lvl = logging.INFO
     h = logging.StreamHandler(stream=sys.stderr)
-    h.setLevel(logging.INFO)
+    h.setLevel(lvl)
     f = logging.Formatter(
         fmt='%(asctime)s | %(process)s - [%(levelname)s/%(processName)s] %(message)s', style='%')
     h.setFormatter(f)
     logger.addHandler(h)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(lvl)
     return logger
