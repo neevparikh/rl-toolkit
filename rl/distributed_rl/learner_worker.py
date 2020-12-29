@@ -173,10 +173,12 @@ def train_worker(rank, learner):
 
         en = time.time()
 
+        learner.logger.debug('grabbing steps_lock')
         learner.steps_lock.acquire()
         learner.steps[rank] = local_steps
         if rank == 0 and local_steps % 1000 == 0:
             new_total = torch.sum(learner.steps).item()
+            learner.steps_lock.release()
             fps = learner.fps_alpha * ((new_total - prev_total) / (en - st)) \
                 + (1 - learner.fps_alpha) * fps
             prev_total = new_total
@@ -185,7 +187,9 @@ def train_worker(rank, learner):
 
             sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
             learner.evaluator_queue.put((True, new_total, sd_cpu))
-        learner.steps_lock.release()
+        else:
+            learner.steps_lock.release()
+            learner.logger.debug('releasing steps_lock')
 
     if rank == 0:
         learner.evaluator_queue.put((False, None, None))
