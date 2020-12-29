@@ -6,7 +6,7 @@ setup(
     description='RL for internal use',
     author='Neev Parikh',
     author_email=('neev_parikh@brown.edu'),
-    packages=['rl'],
+    packages=find_packages(include=['rl', 'rl.*']),
     install_requires=[
         "torch",
         "torchvision",
