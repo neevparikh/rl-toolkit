@@ -1,4 +1,5 @@
 from random import random
+from queue import Empty
 import logging
 import time
 
@@ -45,6 +46,7 @@ class Actor:
         self.env = env_fn()
         self.max_steps_per_actor = max_steps_per_actor
         self.policy_net = policy_fn()
+        # self.policy_net.eval()
         self.local_buffer = buffer_fn(num_send_transitions, transition_shapes)
         self.transition_shapes = transition_shapes
 
@@ -128,16 +130,20 @@ class Actor:
         self.buffer_queue.put((True, self.transition_tensors))
 
     def get_policy_params(self):
-        learner_running, state_dict = self.policy_queue.get()
-        if learner_running:
-            self.policy_net.load_state_dict(state_dict)
-            del state_dict
-        else:
-            self.shutdown()
+        try:
+            learner_running, state_dict = self.policy_queue.get(timeout=10)
+            if learner_running:
+                self.policy_net.load_state_dict(state_dict)
+                del state_dict
+            else:
+                self.shutdown()
+        except Empty:
+            self.logger.warning("{} | no new policy for 10s, continuing with old".format(
+                self.local_steps))
 
     def shutdown(self):
         self.buffer_queue.put((False, None))
-        self.logger.info('{} | epsilon - {}'.format(self.local_steps, self.epsilon))
+        self.logger.info('{} | exiting'.format(self.local_steps))
         self.exit.set()
 
 
@@ -145,6 +151,7 @@ def actor_run(actor):
     actor.logger = get_logger()
     actor.logger.info("Getting initial policy")
     actor.get_policy_params()
+    actor.logger.info("Received initial policy")
     actor.st = time.time()
 
     while actor.local_steps < actor.max_steps_per_actor:
@@ -157,3 +164,5 @@ def actor_run(actor):
             actor.get_policy_params()
     with actor.actor_done.get_lock():
         actor.actor_done.value += 1
+    actor.shutdown()
+    time.sleep(1)
