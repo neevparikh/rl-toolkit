@@ -13,6 +13,8 @@ class Actor:
         self,
         actor_id,
         actor_done,
+        actor_steps,
+        steps_lock,
         max_steps_per_actor,
         epsilon_decay_length,
         final_epsilon_value,
@@ -32,6 +34,12 @@ class Actor:
 
         self.writer = writer
         self.actor_done = actor_done
+        self.actor_steps = actor_steps
+        self.steps_lock = steps_lock
+
+        self.st = None
+        self.en = None
+        self.prev = 0
 
         # Construct env, policy, and local buffer
         self.env = env_fn()
@@ -81,6 +89,30 @@ class Actor:
         self.local_steps += 1
         self.update_epsilon()
 
+    def log(self):
+        self.steps_lock.acquire()
+        self.logger.debug('grabbing steps_lock')
+        self.actor_steps[self.actor_id] = self.local_steps
+        if self.actor_id == 0 and self.local_steps % 1000 == 0:
+            new_total = torch.sum(self.actor_steps).item()
+            self.steps_lock.release()
+            self.en = time.time()
+            fps = (new_total - self.prev) / (self.en - self.st)
+            self.logger.info('{} | fps - {}'.format(new_total, fps))
+            self.prev = new_total
+            self.st = self.en
+
+            if self.local_steps % 10000 == 0:
+                self.logger.info('{} | epsilon - {}'.format(new_total, self.epsilon))
+
+            if self.writer is not None:
+                self.writer.add_scalar('actor_{}/epsilon'.format(self.actor_id),
+                                       self.epsilon,
+                                       new_total)
+        else:
+            self.steps_lock.release()
+            self.logger.debug('releasing steps_lock')
+
     def update_epsilon(self):
         if self.local_steps <= self.warmup_period:
             self.epsilon = 1
@@ -89,13 +121,6 @@ class Actor:
                 self.local_steps - self.warmup_period) / self.epsilon_decay_length
 
             self.epsilon = max(self.final_epsilon_value, current_epsilon_decay)
-
-        if self.local_steps % 10000 == 0:
-            self.logger.info('{} | epsilon - {}'.format(self.local_steps, self.epsilon))
-        if self.writer is not None:
-            self.writer.add_scalar('actor_{}/epsilon'.format(self.actor_id),
-                                   self.epsilon,
-                                   self.local_steps)
 
     def send_transitions(self):
         # Get the latest transitions
@@ -120,9 +145,11 @@ def actor_run(actor):
     actor.logger = get_logger()
     actor.logger.info("Getting initial policy")
     actor.get_policy_params()
+    actor.st = time.time()
 
     while actor.local_steps < actor.max_steps_per_actor:
         actor.act()
+        actor.log()
         if len(actor.local_buffer) >= actor.num_send_transitions:
             actor.send_transitions()
             actor.local_buffer.reset()

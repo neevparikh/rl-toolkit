@@ -3,6 +3,7 @@ import torch.multiprocessing as mp
 
 from ..common.async_replay_buffer import AsyncTorchReplayBuffer, TorchReplayBuffer,\
         async_buffer_run
+from ..common.utils import tensor
 from .actor_worker import Actor, actor_run
 from .learner_worker import Learner, learner_run
 from .evaluation_worker import Evaluator, evaluator_run
@@ -49,6 +50,9 @@ class AsyncDQN_agent:
 
         learner_conn, buffer_conn = mp.Pipe()
         self.actor_done = mp.Value('i', 0)
+        self.actor_steps = tensor([0] * self.num_actors)
+        self.actor_steps.share_memory_()
+        self.actor_steps_lock = mp.Lock()
 
         self.learner = Learner(
             num_workers=num_learners,
@@ -82,6 +86,8 @@ class AsyncDQN_agent:
                 actor_id=i,
                 policy_update_steps=policy_update_steps,
                 num_send_transitions=num_send_transitions,
+                actor_steps=self.actor_steps,
+                steps_lock=self.actor_steps_lock,
                 env_fn=env_fn,
                 actor_done=self.actor_done,
                 max_steps_per_actor=max_steps // num_actors,
