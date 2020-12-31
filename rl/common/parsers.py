@@ -75,9 +75,10 @@ dqn_parser.add_argument('--vanilla-DQN', action='store_true', required=False,
 
 async_dqn_parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         parents=[dqn_parser], add_help=False)
-async_dqn_parser.add_argument('--num-actors', type=int, required=False, default=cpu_count(),
+async_dqn_parser.add_argument('--num-actors', type=int,
+        required=False, default=min(1, cpu_count() - 3),
         help='Number of actors')
-async_dqn_parser.add_argument('--num-learners', type=int, required=False, default=2,
+async_dqn_parser.add_argument('--num-learners', type=int, required=False, default=1,
         help='Number of learner workers')
 async_dqn_parser.add_argument('--policy-update-steps', type=int, required=False, default=400,
         help='Number of steps to update actor policy')
@@ -95,7 +96,7 @@ sac_parser.add_argument('--target-moving-average', type=float, required=False, d
         help='EMA parameter for target network')
 sac_parser.add_argument('--alpha', type=float, default=0.2,
         help='Temperature parameter α determines the relative importance of the entropy term \
-                against the reward (default: 0.2)'                                                                                                    )
+                against the reward (default: 0.2)'                                                                                                                                                      )
 sac_parser.add_argument('--automatic-entropy-tuning', action='store_true',
         help='Automaically adjust α (default: False)')
 sac_parser.add_argument('--hidden-size', type=int, default=256,
