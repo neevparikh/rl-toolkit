@@ -64,10 +64,7 @@ class Learner:
         self.evaluator_queue = mp.Queue()
         self.actor_queues = [mp.Queue() for _ in range(self.num_actors_per_learner)]
 
-        self.minibatches = [
-            construct_blank_tensors(self.batchsize, self.transition_shapes)
-            for i in range(self.num_workers)
-        ]
+        self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
 
         self.steps = tensor([0] * self.num_workers)
         self.steps.share_memory_()
@@ -144,7 +141,7 @@ def train_worker(rank, learner):
     fps = 0
     if rank == 0:
         prev_total = 0
-    learner.minibatches[rank] = list(map(lambda t: t.to(learner.device), learner.minibatches[rank]))
+    learner.minibatch = list(map(lambda t: t.to(learner.device), learner.minibatch))
     optimizer = torch.optim.Adam(learner.online.parameters(), lr=learner.lr)
     st = time.time()
 
@@ -159,7 +156,7 @@ def train_worker(rank, learner):
                     actor_queue.put((True, sd_cpu))
 
         learner.lock.acquire()
-        learner.buffer_conn.send((True, learner.minibatches[rank]))
+        learner.buffer_conn.send((True, learner.minibatch))
         get_possible = learner.buffer_conn.recv()
         learner.lock.release()
 
@@ -167,7 +164,7 @@ def train_worker(rank, learner):
             learner.logger.debug("No batch available")
             continue
 
-        loss = learner.train_batch(optimizer, learner.minibatches[rank])
+        loss = learner.train_batch(optimizer, learner.minibatch)
 
         local_steps += 1
 
