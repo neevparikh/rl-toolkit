@@ -65,8 +65,8 @@ def construct_blank_tensors(size, transition_shapes):
 
 def tensor(x):
     if isinstance(x, torch.Tensor):
-        return x
-    x = np.asarray(x, dtype=np.float32)
+        return x.to(torch.float16)
+    x = np.asarray(x, dtype=np.float16)
     x = torch.from_numpy(x)
     return x
 
