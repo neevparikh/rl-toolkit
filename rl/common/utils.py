@@ -60,7 +60,7 @@ numpy_to_torch_dtype_dict = {
 
 
 def construct_blank_tensors(size, transition_shapes):
-    return [torch.zeros(size, *shp, dtype=torch.float16) for shp in transition_shapes]
+    return [torch.zeros(size, *shp) for shp in transition_shapes]
 
 
 def tensor(x):
