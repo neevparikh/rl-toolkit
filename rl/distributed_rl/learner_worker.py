@@ -161,7 +161,7 @@ def train_worker(rank, learner):
         learner.lock.release()
 
         if not get_possible:
-            learner.logger.debug("No batch available")
+            learner.logger.warning("No batch available")
             continue
 
         loss = learner.train_batch(optimizer, learner.minibatch)
