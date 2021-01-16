@@ -2,7 +2,6 @@ from collections import deque
 
 import numpy as np
 import torch
-import torchvision.transforms as T
 import gym
 import cv2
 
@@ -15,12 +14,13 @@ class IndexedObservation(gym.ObservationWrapper):
         Return elements of observation at given indices
 
     Usage:
-        For example, say the base env has observations Box(4) and you want the indices 1 and 3. You
-        would pass in indices=[1,3] and the observation_space of the wrapped env would be Box(2).
+        For example, say the base env has observations Box(4) and you want the
+        indices 1 and 3. You would pass in indices=[1,3] and the
+        observation_space of the wrapped env would be Box(2).
 
     Notes:
-        - This currently only supports 1D observations but can easily be extended to support
-          multidimensional observations
+        - This currently only supports 1D observations but can easily be
+          extended to support multidimensional observations
     """
     def __init__(self, env, indices):
         super(IndexedObservation, self).__init__(env)
@@ -69,8 +69,8 @@ class ResizeObservation(gym.ObservationWrapper):
 class ObservationDictToInfo(gym.Wrapper):
     """
     Description:
-        Given an env with an observation dict, extract the given state key as the state and pass the
-        existing dict into the info. 
+        Given an env with an observation dict, extract the given state key as
+        the state and pass the existing dict into the info. 
     
     Usage:
         Wrap any Dict observation.
@@ -129,49 +129,58 @@ class ResetARI(gym.Wrapper):
         return next_state, reward, done, info
 
 
-def split_img(img):
-    return img.split()[0]
-
-
-def np_no_copy(img):
-    return np.array(img, copy=False)
-
-
 # Adapted from OpenAI Baselines:
 # https://github.com/openai/baselines/blob/master/baselines/common/atari_wrappers.py
-class AtariPreprocess(gym.Wrapper):
-    """
-    Description:
-        Preprocessing as described in the Nature DQN paper (Mnih 2015) 
-    
-    Usage:
-        Wrap env around this. It will use torchvision to transform the image according to Mnih 2015
+class WarpFrame(gym.ObservationWrapper):
+    def __init__(self, env, width=84, height=84, grayscale=True, dict_space_key=None):
+        """
+        Warp frames to 84x84 as done in the Nature paper and later work.
+        If the environment uses dictionary observations, `dict_space_key` can be specified which
+        indicates which observation should be warped.
+        """
+        super().__init__(env)
+        self._width = width
+        self._height = height
+        self._grayscale = grayscale
+        self._key = dict_space_key
+        if self._grayscale:
+            num_colors = 1
+            shape = (self._height, self._width)
+        else:
+            num_colors = 3
+            shape = (self._height, self._width, num_colors)
 
-    Notes:
-        - Should be decomposed into using separate envs for each. 
-    """
-    def __init__(self, env, shape=(84, 84)):
-        gym.Wrapper.__init__(self, env)
-        self.shape = shape
-        self.transforms = T.Compose([
-            T.ToPILImage(mode='YCbCr'),
-            T.Lambda(split_img),
-            T.Resize(self.shape),
-            T.Lambda(np_no_copy),
-        ])
-        self.observation_space = gym.spaces.Box(
+        new_space = gym.spaces.Box(
             low=0,
             high=255,
-            shape=self.shape,
+            shape=shape,
             dtype=np.uint8,
         )
+        if self._key is None:
+            original_space = self.observation_space
+            self.observation_space = new_space
+        else:
+            original_space = self.observation_space.spaces[self._key]
+            self.observation_space.spaces[self._key] = new_space
+        assert original_space.dtype == np.uint8 and len(original_space.shape) == 3
 
-    def reset(self, **kwargs):
-        return self.transforms(self.env.reset(**kwargs))
+    def observation(self, obs):
+        if self._key is None:
+            frame = obs
+        else:
+            frame = obs[self._key]
 
-    def step(self, action):
-        next_state, reward, done, info = self.env.step(action)
-        return self.transforms(next_state), reward, done, info
+        if self._grayscale:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+
+        frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_AREA)
+
+        if self._key is None:
+            obs = frame
+        else:
+            obs = obs.copy()
+            obs[self._key] = frame
+        return obs
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -189,10 +198,16 @@ class MaxAndSkipEnv(gym.Wrapper):
     def __init__(self, env, skip=4):
         gym.Wrapper.__init__(self, env)
         # most recent raw observations (for max pooling across time steps)
-        self._obs_buffer = np.zeros((2,) + env.observation_space.shape, dtype=np.uint8)
+        self.env = env
         self._skip = skip
+        self._obs_buffer = self._clear_buf()
+
+    def _clear_buf(self):
+        return np.zeros((2,) + self.env.observation_space.shape,
+                        dtype=self.env.observation_space.dtype)
 
     def reset(self, **kwargs):
+        self._obs_buffer = self._clear_buf()
         return self.env.reset(**kwargs)
 
     def step(self, action):
