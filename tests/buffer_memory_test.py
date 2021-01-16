@@ -1,5 +1,6 @@
-import torch 
+import torch
 import time
+import numpy as np
 
 from rl.common.initialize_env import initialize_environment
 from rl.common.utils import tensor
@@ -17,17 +18,19 @@ transition_shapes = [
     torch.Size([1]),  # done
 ]
 buf = TorchReplayBuffer(args.replay_buffer_size, transition_shapes)
-print("DONE")
 
-# done = False
-# step = 0
-# 
-# while step < args.replay_buffer_size:
-#     obs = env.reset()
-#     while not done:
-#         act = env.action_space.sample()
-#         n_obs, rew, done, _ = env.step(act)
-#         buf.put([obs.unsqueeze(0), n_obs.unsqueeze(0), tensor([act]).unsqueeze(0), rew.unsqueeze(0), done.unsqueeze(0)])
-#         obs = n_obs
-#         step += 1
-
+step = 0
+while step < 1e5:
+    obs = env.reset()
+    done = False
+    cr = 0
+    while not done:
+        act = env.action_space.sample()
+        n_obs, rew, done, _ = env.step(act)
+        # print(n_obs, act, rew)
+        # buf.put([obs.unsqueeze(0), n_obs.unsqueeze(0), tensor([act]).unsqueeze(0),
+        #     rew.unsqueeze(0), done.unsqueeze(0)])
+        obs = n_obs
+        cr += rew
+        step += 1
+    print(cr)
