@@ -74,6 +74,7 @@ class Learner:
         self.lock = mp.Lock()
         self.steps_lock = mp.Lock()
         self.exit = mp.Event()
+        self.ready = mp.Event()
 
     def get_policy_fn(self, device):
         if self.model_type == "mlp":
@@ -173,7 +174,7 @@ def train_worker(rank, learner):
         learner.logger.debug('grabbing steps_lock')
         learner.steps_lock.acquire()
         learner.steps[rank] = local_steps
-        if rank == 0 and local_steps % 1000 == 0:
+        if rank == 0 and local_steps % 100 == 0:
             new_total = torch.sum(learner.steps).item()
             learner.steps_lock.release()
             fps = learner.fps_alpha * ((new_total - prev_total) / (en - st)) \
@@ -182,8 +183,9 @@ def train_worker(rank, learner):
             learner.logger.info('{} | fps - {}'.format(new_total, fps))
             st = en
 
-            sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
-            learner.evaluator_queue.put((True, new_total, sd_cpu))
+            if local_steps % (1000 // learner.num_workers) == 0:
+                sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
+                learner.evaluator_queue.put((True, new_total, sd_cpu))
         else:
             learner.steps_lock.release()
             learner.logger.debug('releasing steps_lock')
@@ -208,6 +210,7 @@ def learner_run(learner):
         p.start()
         procs.append(p)
 
+    learner.ready.set()
     del learner
 
     for p in procs:

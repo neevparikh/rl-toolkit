@@ -45,15 +45,16 @@ class Evaluator:
                 state = self.env.reset()
 
                 done = False
+                ep_reward = 0
 
                 # Test episode loop
                 while not done:
                     action = self.policy_net.act(state, 0)
-
-                    state, reward, done, _ = self.env.step(action)
-
+                    next_state, reward, done, _ = self.env.step(action)
+                    state = next_state
                     # Update reward
-                    cumulative_reward += reward
+                    ep_reward += reward
+                cumulative_reward += ep_reward
 
             eval_reward = cumulative_reward / self.episodes_per_eval
 

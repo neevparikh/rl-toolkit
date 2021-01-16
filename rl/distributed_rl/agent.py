@@ -118,12 +118,15 @@ class AsyncDQN_agent:
         ep = mp.Process(name='evaluator', target=evaluator_run, args=(self.evaluator,))
         print("launching learner")
         lp.start()
-        for ap in aps:
-            ap.start()
         print("launching buffer")
         bp.start()
         print("launching evaluator")
         ep.start()
+        while not self.learner.ready.is_set():
+            continue
+        print("launching actors")
+        for ap in aps:
+            ap.start()
         while self.actor_done.value != self.num_actors:
             continue
         self.learner.shutdown()

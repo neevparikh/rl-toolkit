@@ -93,10 +93,11 @@ def async_buffer_run(buf):
     buf.logger = get_logger()
     buf.actor_queues = [[False, aq] for aq in buf.actor_queues]
     while not buf.exit.is_set():
-        if buf.learner_conn.poll(timeout=1):
+        if buf.learner_conn.poll(timeout=0.5):
             learner_running, transition_tensors = buf.learner_conn.recv()
             if learner_running:
                 if len(buf) >= transition_tensors[0].shape[0]:
+                    buf.logger.debug("Learner request, sending batch")
                     buf.get(transition_tensors)
                     del transition_tensors
                     buf.learner_conn.send(True)
@@ -114,6 +115,7 @@ def async_buffer_run(buf):
                 try:
                     actor_running, transition_tensors = actor_queue.get_nowait()
                     if actor_running:
+                        buf.logger.debug("actor {} data, storing batch".format(i))
                         buf.put(transition_tensors)
                         del transition_tensors
                     else:
