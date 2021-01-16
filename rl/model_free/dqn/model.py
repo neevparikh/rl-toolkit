@@ -4,7 +4,7 @@ import random
 import torch
 import numpy as np
 
-from ...common.utils import conv2d_size_out, append_timestamp, plot_grad_flow
+from ...common.utils import conv2d_size_out, append_timestamp, plot_grad_flow, init_weights
 from ...common.replay_buffer import ReplayBuffer, Experience
 from ...common.modules import MLP
 
@@ -78,6 +78,7 @@ class DQN_MLP_model(DQN_Base_model):
         self.body = MLP([input_size] + self.layer_sizes + [output_size],
                         activation=torch.nn.ReLU,
                         final_activation=None)
+        self.body.apply(init_weights)
 
         trainable_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print(repr(self))
@@ -121,6 +122,7 @@ class DQN_CNN_model(DQN_Base_model):
             torch.nn.Conv2d(64, 64, kernel_size=(3, 3), stride=1),
             torch.nn.ReLU()
         ])
+        self.body.apply(init_weights)
 
         final_size = conv2d_size_out(self.input_shape, (8, 8), 4)
         final_size = conv2d_size_out(final_size, (4, 4), 2)
@@ -131,6 +133,7 @@ class DQN_CNN_model(DQN_Base_model):
             torch.nn.ReLU(),
             torch.nn.Linear(self.final_dense_layer, self.num_actions),
         ])
+        self.head.apply(init_weights)
 
         trainable_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print(repr(self))

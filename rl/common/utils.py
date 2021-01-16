@@ -73,7 +73,7 @@ def tensor(x):
 
 def init_weights(m):
     if type(m) == torch.nn.Linear:
-        torch.nn.init.uniform_(m.weight, -0.1, 0.1)
+        torch.nn.init.uniform_(m.weight, -0.5, 0.5)
         torch.nn.init.uniform_(m.bias, -1, 1)
 
 
