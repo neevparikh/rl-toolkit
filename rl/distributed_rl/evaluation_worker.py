@@ -41,7 +41,7 @@ class Evaluator:
             # Reset environment
             cumulative_reward = 0
 
-            for _ in range(self.episodes_per_eval):
+            for i in range(self.episodes_per_eval):
                 state = self.env.reset()
 
                 done = False
@@ -54,6 +54,9 @@ class Evaluator:
                     state = next_state
                     # Update reward
                     ep_reward += reward
+                self.logger.info("{} | {} test, reward - {}".format(learner_steps,
+                                                                    i,
+                                                                    ep_reward.item()))
                 cumulative_reward += ep_reward
 
             eval_reward = cumulative_reward / self.episodes_per_eval
