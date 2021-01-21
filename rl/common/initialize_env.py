@@ -79,8 +79,8 @@ def initialize_environment(args):
         env, test_env = get_wrapped_env(args.env, args.seed, make_atari,
                 num_frames=args.num_frames, action_stack=args.action_stack)
     elif args.ari:
-        env, test_env = get_wrapped_env(args.env, make_ari)
+        env, test_env = get_wrapped_env(args.env, args.seed, make_ari)
     else:
-        env, test_env = get_wrapped_env(args.env, TorchWrap)
+        env, test_env = get_wrapped_env(args.env, args.seed, TorchWrap)
 
     return env, test_env
