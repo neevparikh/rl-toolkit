@@ -184,6 +184,8 @@ def train_worker(rank, learner):
                 learner.logger.info('{} (local - {})| fps - {}'.format(
                     prev_total, local_steps, fps))
                 st = en
+            else:
+                learner.steps_lock.release()
 
             if local_steps % (1000 // learner.num_workers) == 0:
                 sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
