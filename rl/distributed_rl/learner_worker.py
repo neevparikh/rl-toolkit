@@ -181,8 +181,8 @@ def train_worker(rank, learner):
                 fps = learner.fps_alpha * ((new_total - prev_total) / (en - st)) \
                     + (1 - learner.fps_alpha) * fps
                 prev_total = new_total
-                learner.logger.info('{} | local - {}, fps - {}'.format(
-                    prev_total, local_steps, fps))
+                learner.logger.info('{} | local - {}, bps - {}, fps - {}'.format(
+                    prev_total, local_steps, fps, fps * learner.batchsize))
                 st = en
             else:
                 learner.steps_lock.release()
