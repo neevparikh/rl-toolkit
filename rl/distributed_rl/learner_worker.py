@@ -151,27 +151,40 @@ def train_worker(rank, learner):
     while local_steps < min_steps_per_worker or not learner.exit.is_set():
         # Send policy to actors
         if rank == 0:
+            t0 = time.time()
             sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
             for actor_queue in learner.actor_queues:
                 if actor_queue.empty():
                     actor_queue.put((True, sd_cpu))
+            t1 = time.time()
+            learner.logger.info('{} for sending sd to actors', t1 - t0)
 
+        t0 = time.time()
         learner.lock.acquire()
         learner.buffer_conn.send((True, learner.minibatch))
         get_possible = learner.buffer_conn.recv()
         learner.lock.release()
+        t1 = time.time()
 
         if not get_possible:
             learner.logger.warning("No batch available")
             continue
 
+        learner.logger.info('{} for getting minibatch', t1 - t0)
+
+        t0 = time.time()
         loss = learner.train_batch(optimizer, learner.minibatch)
+        t1 = time.time()
+
+        learner.logger.info('{} for training minibatch', t1 - t0)
 
         local_steps += 1
 
         en = time.time()
 
         learner.logger.debug('grabbing steps_lock')
+
+        t0 = time.time()
         learner.steps_lock.acquire()
         learner.steps[rank] = local_steps
         if rank == 0:
@@ -194,6 +207,9 @@ def train_worker(rank, learner):
         else:
             learner.steps_lock.release()
             learner.logger.debug('releasing steps_lock')
+
+        t1 = time.time()
+        learner.logger.info('{} for printing/evaling', t1 - t0)
 
     if rank == 0:
         learner.evaluator_queue.put((False, None, None))
