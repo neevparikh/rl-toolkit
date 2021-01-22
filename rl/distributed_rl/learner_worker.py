@@ -151,13 +151,10 @@ def train_worker(rank, learner):
     while local_steps < min_steps_per_worker or not learner.exit.is_set():
         # Send policy to actors
         if rank == 0:
-            t0 = time.time()
             sd_cpu = {k: v.cpu() for k, v in learner.online.state_dict().items()}
             for actor_queue in learner.actor_queues:
                 if actor_queue.empty():
                     actor_queue.put((True, sd_cpu))
-            t1 = time.time()
-            learner.logger.info('{} for sending sd to actors'.format(t1 - t0))
 
         t0 = time.time()
         learner.lock.acquire()
