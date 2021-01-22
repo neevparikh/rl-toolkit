@@ -184,7 +184,6 @@ def train_worker(rank, learner):
 
         learner.logger.debug('grabbing steps_lock')
 
-        t0 = time.time()
         learner.steps_lock.acquire()
         learner.steps[rank] = local_steps
         if rank == 0:
@@ -207,9 +206,6 @@ def train_worker(rank, learner):
         else:
             learner.steps_lock.release()
             learner.logger.debug('releasing steps_lock')
-
-        t1 = time.time()
-        learner.logger.info('{} for printing/evaling'.format(t1 - t0))
 
     if rank == 0:
         learner.evaluator_queue.put((False, None, None))
