@@ -157,7 +157,7 @@ def train_worker(rank, learner):
                 if actor_queue.empty():
                     actor_queue.put((True, sd_cpu))
             t1 = time.time()
-            learner.logger.info('{} for sending sd to actors', t1 - t0)
+            learner.logger.info('{} for sending sd to actors'.format(t1 - t0))
 
         t0 = time.time()
         learner.lock.acquire()
@@ -170,13 +170,13 @@ def train_worker(rank, learner):
             learner.logger.warning("No batch available")
             continue
 
-        learner.logger.info('{} for getting minibatch', t1 - t0)
+        learner.logger.info('{} for getting minibatch'.format(t1 - t0))
 
         t0 = time.time()
         loss = learner.train_batch(optimizer, learner.minibatch)
         t1 = time.time()
 
-        learner.logger.info('{} for training minibatch', t1 - t0)
+        learner.logger.info('{} for training minibatch'.format(t1 - t0))
 
         local_steps += 1
 
@@ -209,7 +209,7 @@ def train_worker(rank, learner):
             learner.logger.debug('releasing steps_lock')
 
         t1 = time.time()
-        learner.logger.info('{} for printing/evaling', t1 - t0)
+        learner.logger.info('{} for printing/evaling'.format(t1 - t0))
 
     if rank == 0:
         learner.evaluator_queue.put((False, None, None))
