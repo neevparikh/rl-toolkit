@@ -156,32 +156,16 @@ def train_worker(rank, learner):
                 if actor_queue.empty():
                     actor_queue.put((True, sd_cpu))
 
-        t0 = time.time()
         learner.lock.acquire()
-        t1 = time.time()
-        learner.logger.info('{} for getting minibatch lock'.format(t1 - t0))
-        t0 = time.time()
         learner.buffer_conn.send((True, learner.minibatch))
-        t1 = time.time()
-        learner.logger.info('{} for sending minibatch tensor'.format(t1 - t0))
-        t0 = time.time()
         get_possible = learner.buffer_conn.recv()
-        t1 = time.time()
-        learner.logger.info('{} for getting reply'.format(t1 - t0))
-        t0 = time.time()
         learner.lock.release()
-        t1 = time.time()
-        learner.logger.info('{} for releasing minibatch lock'.format(t1 - t0))
 
         if not get_possible:
             learner.logger.warning("No batch available")
             continue
 
-        t0 = time.time()
         loss = learner.train_batch(optimizer, learner.minibatch)
-        t1 = time.time()
-
-        learner.logger.info('{} for training minibatch'.format(t1 - t0))
 
         local_steps += 1
 
