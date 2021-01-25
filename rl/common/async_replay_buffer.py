@@ -54,13 +54,16 @@ class TorchReplayBuffer:
         assert len(transition_tensors) == len(self.transition_shapes), "{} != {}".format(
                 len(transition_tensors), len(self.transition_shapes))
 
-        # Split into chunks if putting more than capacity at a time
-        # This is [(state_chunk1, state_chunk2), (action_chunk1, action_chunk2)]
-        chunks = list(map(lambda t: torch.split(t, self.max_size, dim=0), transition_tensors))
-        # This is [(state_chunk1, action_chunk1), (state_chunk2, action_chunk2)]
-        chunks = list(zip(*chunks))
-        for chunk in chunks:
-            self._put_chunk(chunk)
+        if transition_tensors[0].shape[0] > self.max_size:
+            # Split into chunks if putting more than capacity at a time
+            # This is [(state_chunk1, state_chunk2), (action_chunk1, action_chunk2)]
+            chunks = list(map(lambda t: torch.split(t, self.max_size, dim=0), transition_tensors))
+            # This is [(state_chunk1, action_chunk1), (state_chunk2, action_chunk2)]
+            chunks = list(zip(*chunks))
+            for chunk in chunks:
+                self._put_chunk(chunk)
+        else:
+            self._put_chunk(transition_tensors)
 
     def get(self, transition_tensors):
         assert len(transition_tensors) == len(self.transition_shapes), "{}".format(
