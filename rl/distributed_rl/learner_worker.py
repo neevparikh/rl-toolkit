@@ -59,7 +59,7 @@ class Learner:
         self.target_moving_average = target_moving_average
 
         self.transition_shapes = transition_shapes
-        # self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
+        self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
 
         self.num_actors_per_learner = num_actors_per_learner
         self.buffer_conn = buffer_conn
@@ -181,7 +181,7 @@ def train_worker(rank, learner, minibatch_queue):
     fps = 0
     if rank == 0:
         prev_total = 0
-    # learner.minibatch = move_to_device(learner.minibatch, learner.device)
+    learner.minibatch = move_to_device(learner.minibatch, learner.device)
     optimizer = torch.optim.Adam(learner.online.parameters(), lr=learner.lr)
     st = time.time()
 
@@ -201,17 +201,17 @@ def train_worker(rank, learner, minibatch_queue):
         learner.logger.info('{} for getting minibatch'.format(t1 - t0))
 
         t0 = time.time()
-        # for l_batch, cpu_batch in zip(learner.minibatch, cpu_minibatch):
-        #     l_batch.copy_(cpu_batch)
-        minibatch = move_to_device(cpu_minibatch, learner.device)
+        for l_batch, cpu_batch in zip(learner.minibatch, cpu_minibatch):
+            l_batch.copy_(cpu_batch)
+        # minibatch = move_to_device(cpu_minibatch, learner.device)
         t1 = time.time()
         learner.logger.info('{} for moving to device'.format(t1 - t0))
 
         t0 = time.time()
-        # loss = learner.train_batch(optimizer, learner.minibatch)
-        # del cpu_minibatch
-        loss = learner.train_batch(optimizer, minibatch)
-        del minibatch
+        loss = learner.train_batch(optimizer, learner.minibatch)
+        del cpu_minibatch
+        # loss = learner.train_batch(optimizer, minibatch)
+        # del minibatch
         t1 = time.time()
 
         learner.logger.info('{} for training minibatch'.format(t1 - t0))
