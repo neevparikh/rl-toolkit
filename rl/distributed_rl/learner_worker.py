@@ -198,14 +198,14 @@ def train_worker(rank, learner, minibatch_queue):
         t0 = time.time()
         cpu_minibatch = minibatch_queue.get()
         t1 = time.time()
-        learner.logger.info('{} for getting minibatch'.format(t1 - t0))
+        learner.logger.debug('{} for getting minibatch'.format(t1 - t0))
 
         t0 = time.time()
         for l_batch, cpu_batch in zip(learner.minibatch, cpu_minibatch):
             l_batch.copy_(cpu_batch)
         # minibatch = move_to_device(cpu_minibatch, learner.device)
         t1 = time.time()
-        learner.logger.info('{} for moving to device'.format(t1 - t0))
+        learner.logger.debug('{} for moving to device'.format(t1 - t0))
 
         t0 = time.time()
         loss = learner.train_batch(optimizer, learner.minibatch)
@@ -214,7 +214,7 @@ def train_worker(rank, learner, minibatch_queue):
         # del minibatch
         t1 = time.time()
 
-        learner.logger.info('{} for training minibatch'.format(t1 - t0))
+        learner.logger.debug('{} for training minibatch'.format(t1 - t0))
 
         local_steps += 1
 
