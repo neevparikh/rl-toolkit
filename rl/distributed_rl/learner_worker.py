@@ -5,7 +5,7 @@ import torch
 import torch.multiprocessing as mp
 
 from ..model_free.dqn.model import DQN_MLP_model, DQN_CNN_model
-from ..common.utils import construct_blank_tensors, soft_update, tensor, get_logger
+from ..common.utils import construct_blank_tensors, soft_update, tensor, get_logger, move_to_device
 
 
 class Learner:
@@ -59,19 +59,18 @@ class Learner:
         self.target_moving_average = target_moving_average
 
         self.transition_shapes = transition_shapes
+        # self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
+
         self.num_actors_per_learner = num_actors_per_learner
         self.buffer_conn = buffer_conn
         self.evaluator_queue = mp.Queue()
         self.actor_queues = [mp.Queue() for _ in range(self.num_actors_per_learner)]
-
-        self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
 
         self.steps = tensor([0] * self.num_workers)
         self.steps.share_memory_()
         self.fps_alpha = 1
         self.min_gradient_steps = min_gradient_steps
 
-        self.lock = mp.Lock()
         self.steps_lock = mp.Lock()
         self.exit = mp.Event()
         self.ready = mp.Event()
@@ -131,7 +130,47 @@ class Learner:
         return loss
 
 
-def train_worker(rank, learner):
+class MiniBatcher:
+    def __init__(
+        self,
+        buffer_conn,
+        device,
+        batchsize,
+        transition_shapes,
+        num_workers,
+    ):
+
+        self.device = device
+        self.batchsize = batchsize
+        self.num_workers = num_workers
+        self.transition_shapes = transition_shapes
+
+        self.buffer_conn = buffer_conn
+        self.minibatch_queue = mp.Queue()
+        self.exit = mp.Event()
+
+        self.logger = get_logger()
+        self.minibatch = construct_blank_tensors(self.batchsize, self.transition_shapes)
+        self.minibatch = list(map(lambda t: t.share_memory_(), self.minibatch))
+
+    def fetch_batches(self):
+        while not self.exit.is_set():
+            self.buffer_conn.send((True, self.minibatch))
+            get_possible = self.buffer_conn.recv()
+
+            if get_possible:
+                self.minibatch_queue.put(self.minibatch)
+            else:
+                self.logger.warning("No batch available")
+                continue
+
+
+def batcher_run(batcher):
+    batcher.logger = get_logger()
+    batcher.fetch_batches()
+
+
+def train_worker(rank, learner, minibatch_queue):
     learner.online = learner.online.to(learner.device)
     learner.target = learner.target.to(learner.device)
     learner.online.share_memory()
@@ -142,7 +181,7 @@ def train_worker(rank, learner):
     fps = 0
     if rank == 0:
         prev_total = 0
-    learner.minibatch = list(map(lambda t: t.to(learner.device), learner.minibatch))
+    # learner.minibatch = move_to_device(learner.minibatch, learner.device)
     optimizer = torch.optim.Adam(learner.online.parameters(), lr=learner.lr)
     st = time.time()
 
@@ -157,28 +196,22 @@ def train_worker(rank, learner):
                     actor_queue.put((True, sd_cpu))
 
         t0 = time.time()
-        learner.lock.acquire()
+        cpu_minibatch = minibatch_queue.get()
         t1 = time.time()
-        learner.logger.info('{} for getting minibatch lock'.format(t1 - t0))
-        t0 = time.time()
-        learner.buffer_conn.send((True, learner.minibatch))
-        t1 = time.time()
-        learner.logger.info('{} for sending minibatch tensor'.format(t1 - t0))
-        t0 = time.time()
-        get_possible = learner.buffer_conn.recv()
-        t1 = time.time()
-        learner.logger.info('{} for getting reply'.format(t1 - t0))
-        t0 = time.time()
-        learner.lock.release()
-        t1 = time.time()
-        learner.logger.info('{} for releasing minibatch lock'.format(t1 - t0))
-
-        if not get_possible:
-            learner.logger.warning("No batch available")
-            continue
+        learner.logger.info('{} for getting minibatch'.format(t1 - t0))
 
         t0 = time.time()
-        loss = learner.train_batch(optimizer, learner.minibatch)
+        # for l_batch, cpu_batch in zip(learner.minibatch, cpu_minibatch):
+        #     l_batch.copy_(cpu_batch)
+        minibatch = move_to_device(cpu_minibatch, learner.device)
+        t1 = time.time()
+        learner.logger.info('{} for moving to device'.format(t1 - t0))
+
+        t0 = time.time()
+        # loss = learner.train_batch(optimizer, learner.minibatch)
+        # del cpu_minibatch
+        loss = learner.train_batch(optimizer, minibatch)
+        del minibatch
         t1 = time.time()
 
         learner.logger.info('{} for training minibatch'.format(t1 - t0))
@@ -221,13 +254,27 @@ def train_worker(rank, learner):
 def learner_run(learner):
     learner.logger = get_logger()
 
+    batcher = MiniBatcher(
+        learner.buffer_conn,
+        learner.device,
+        learner.batchsize,
+        learner.transition_shapes,
+        learner.num_workers,
+    )
+
+    batcher_proc = mp.Process(name='batcher', target=batcher_run, args=(batcher,))
+    batcher_proc.start()
+
     procs = []
 
     for i in range(learner.num_workers):
-        p = mp.Process(name='learner_{}'.format(i), target=train_worker, args=(
-            i,
-            learner,
-        ))
+        p = mp.Process(name='learner_{}'.format(i),
+                       target=train_worker,
+                       args=(
+                           i,
+                           learner,
+                           batcher.minibatch_queue,
+                       ))
         learner.logger.info('Launching learner_{}'.format(i))
         p.start()
         procs.append(p)
@@ -237,3 +284,6 @@ def learner_run(learner):
 
     for p in procs:
         p.join()
+
+    batcher.exit.set()
+    batcher_proc.join()

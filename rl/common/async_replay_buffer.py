@@ -98,26 +98,14 @@ def async_buffer_run(buf):
     buf.actor_queues = [[False, aq] for aq in buf.actor_queues]
     while not buf.exit.is_set():
         if buf.learner_conn.poll(timeout=0.5):
-            t0 = time.time()
             learner_running, transition_tensors = buf.learner_conn.recv()
-            t1 = time.time()
-            buf.logger.info("{} - learner recv".format(t1 - t0))
 
             if learner_running:
                 if len(buf) >= transition_tensors[0].shape[0]:
                     buf.logger.debug("Learner request, sending batch")
-                    t0 = time.time()
                     buf.get(transition_tensors)
-                    t1 = time.time()
-                    buf.logger.info("{} - filling batch".format(t1 - t0))
-                    t0 = time.time()
                     del transition_tensors
-                    t1 = time.time()
-                    buf.logger.info("{} - deleting copy".format(t1 - t0))
-                    t0 = time.time()
                     buf.learner_conn.send(True)
-                    t1 = time.time()
-                    buf.logger.info("{} - sending batch".format(t1 - t0))
                 else:
                     del transition_tensors
                     buf.learner_conn.send(False)
@@ -130,20 +118,10 @@ def async_buffer_run(buf):
             actor_exited, actor_queue = buf.actor_queues[i]
             if not actor_exited:
                 try:
-                    t0 = time.time()
                     actor_running, transition_tensors = actor_queue.get_nowait()
-                    t1 = time.time()
-                    buf.logger.info("{} - getting from actor".format(t1 - t0))
                     if actor_running:
-                        buf.logger.debug("actor {} data, storing batch".format(i))
-                        t0 = time.time()
                         buf.put(transition_tensors)
-                        t1 = time.time()
-                        buf.logger.info("{} - putting data from actor".format(t1 - t0))
-                        t0 = time.time()
                         del transition_tensors
-                        t1 = time.time()
-                        buf.logger.info("{} - deleting copy from actor".format(t1 - t0))
                     else:
                         buf.actor_queues[i][0] = True
                 except queue.Empty:

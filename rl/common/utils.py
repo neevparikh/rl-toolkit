@@ -63,6 +63,10 @@ def construct_blank_tensors(size, transition_shapes):
     return [torch.zeros(size, *shp) for shp in transition_shapes]
 
 
+def move_to_device(tensors, device):
+    return list(map(lambda t: t.to(device), tensors))
+
+
 def tensor(x):
     if isinstance(x, torch.Tensor):
         return x
